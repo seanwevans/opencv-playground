@@ -1,5 +1,7 @@
 # OpenCV Playground
-HandBrake‑style frontend for **OpenCV.js**. Load an image, stack OpenCV operations, tweak parameters with live previews, and export the pipeline or the processed image.
+https://seanwevans.github.io/opencv-playground/
+
+frontend for **OpenCV.js**. Load an image, stack OpenCV operations, tweak parameters with live previews, and export the pipeline or the processed image.
 
 ---
 
