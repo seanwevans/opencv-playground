@@ -3,57 +3,6 @@ HandBrake‑style frontend for **OpenCV.js**. Load an image, stack OpenCV operat
 
 ---
 
-## Features
-- Drag‑and‑drop or **Open** button to load images
-- **Live** processing with debounced sliders (smooth UI)
-- **Compare**: *Side‑by‑side* or draggable **Slider**; hold **Space** to “peek” the original
-- Pipeline editor: add, reorder, toggle, or delete ops
-- **Export / Import** pipeline as JSON
-- **Download** processed image (**PNG/JPEG**) without UI overlays
-- Memory‑safe: intermediate `cv.Mat`s are cleaned up after each op
-
----
-
-## Quick Start (Vite + React)
-> Requires Node 18+
-
-```bash
-# 1) Create a Vite React app (or use your existing project)
-npm create vite@latest opencv-playground -- --template react
-cd opencv-playground
-npm install
-```
-
-Add OpenCV.js to **index.html** (before your bundle):
-```html
-<!-- Load OpenCV.js (4.x) -->
-<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
-```
-
-*(Optional)* Tailwind – not required, but the sample component uses simple utility classes:
-```bash
-npm i -D tailwindcss postcss autoprefixer
-npx tailwindcss init -p
-# configure content paths in tailwind.config.js as usual
-```
-
-Copy **`src/OpenCVPlayground.jsx`** from this repo into your project and render it from `App.jsx`:
-```jsx
-import OpenCVPlayground from "./OpenCVPlayground.jsx";
-export default function App() { return <OpenCVPlayground />; }
-```
-
-Run:
-```bash
-npm run dev
-```
-Build:
-```bash
-npm run build
-```
-
----
-
 ## Using the App
 - **Open**: pick a file or drag‑and‑drop into the *Original* panel
 - **Live**: when enabled, the pipeline re-runs on every parameter change
@@ -90,7 +39,16 @@ npm run build
 - **ColorMap** (Jet/Hot/Viridis/Turbo/…)
 - **BlendWithOriginal** (mix processed with original)
 
-> Ops are safe to chain; color/gray conversions are handled inside each op.
+---
+
+Run:
+```bash
+npm run dev
+```
+Build:
+```bash
+npm run build
+```
 
 ---
 
