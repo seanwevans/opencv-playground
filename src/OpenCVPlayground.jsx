@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * OpenCV Playground — a HandBrake-style frontend for OpenCV.js
@@ -455,80 +455,8 @@ export default function OpenCVPlayground() {
 
   const debouncedRun = useDebouncedCallback(() => runPipeline(), 120);
 
-  // Spacebar A/B peek
-  useEffect(() => {
-    function onKeyDown(e){
-      if (e.code === 'Space' && !e.repeat) setPeekOriginal(true);
-    }
-    function onKeyUp(e){
-      if (e.code === 'Space') setPeekOriginal(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, []);
-
-  // Redraw overlay when slider/peek changes
-  useEffect(() => {
-    refreshCompareOverlay();
-  }, [sliderX, compareMode, peekOriginal]);
-
-  // Re-run pipeline when ops change or Live toggles
-  useEffect(() => {
-    if (!cvReady) return;
-    if (live) debouncedRun();
-  }, [ops, live, cvReady]);
-
-  // Keep compare overlay crisp on resize
-  useEffect(() => {
-    const onResize = () => refreshCompareOverlay();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  function onFileChosen(file) {
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const oc = origCanvasRef.current;
-      oc.width = img.naturalWidth; oc.height = img.naturalHeight;
-      const ctx = oc.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-
-      // Replace originalMat
-      const cv = window.cv;
-      const newMat = cv.imread(oc);
-      if (originalMatRef.current) try { originalMatRef.current.delete(); } catch {}
-      originalMatRef.current = newMat; // RGBA
-      processedImageDataRef.current = null;
-
-      // Resize processed canvas to match
-      const pc = procCanvasRef.current;
-      pc.width = oc.width; pc.height = oc.height;
-
-      setFileLabel(file.name || "Open image…");
-      setStatus(`${img.naturalWidth}×${img.naturalHeight} loaded`);
-      if (live) debouncedRun(); else drawOriginal();
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => setStatus("Failed to load image");
-    img.src = url;
-  }
-
-  function drawOriginal() {
-    const oc = origCanvasRef.current;
-    const pc = procCanvasRef.current;
-    const pctx = pc.getContext('2d');
-    pctx.clearRect(0,0,pc.width,pc.height);
-    pctx.drawImage(oc, 0, 0);
-  }
-
   // Draw processed snapshot + overlay original for compare slider
-  function refreshCompareOverlay(){
+  const refreshCompareOverlay = useCallback(() => {
     const pc = procCanvasRef.current;
     const oc = origCanvasRef.current;
     if (!pc || !oc) return;
@@ -566,6 +494,78 @@ export default function OpenCVPlayground() {
     ctx.strokeStyle = '#ffffff';
     ctx.stroke();
     ctx.restore();
+  }, [sliderX, compareMode, peekOriginal]);
+
+  // Spacebar A/B peek
+  useEffect(() => {
+    function onKeyDown(e){
+      if (e.code === 'Space' && !e.repeat) setPeekOriginal(true);
+    }
+    function onKeyUp(e){
+      if (e.code === 'Space') setPeekOriginal(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
+  // Redraw overlay when slider/peek changes
+  useEffect(() => {
+    refreshCompareOverlay();
+  }, [refreshCompareOverlay]);
+
+  // Re-run pipeline when ops change or Live toggles
+  useEffect(() => {
+    if (!cvReady) return;
+    if (live) debouncedRun();
+  }, [ops, live, cvReady]);
+
+  // Keep compare overlay crisp on resize
+  useEffect(() => {
+    const onResize = () => refreshCompareOverlay();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [refreshCompareOverlay]);
+
+  function onFileChosen(file) {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const oc = origCanvasRef.current;
+      oc.width = img.naturalWidth; oc.height = img.naturalHeight;
+      const ctx = oc.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      // Replace originalMat
+      const cv = window.cv;
+      const newMat = cv.imread(oc);
+      if (originalMatRef.current) try { originalMatRef.current.delete(); } catch {}
+      originalMatRef.current = newMat; // RGBA
+      processedImageDataRef.current = null;
+
+      // Resize processed canvas to match
+      const pc = procCanvasRef.current;
+      pc.width = oc.width; pc.height = oc.height;
+
+      setFileLabel(file.name || "Open image…");
+      setStatus(`${img.naturalWidth}×${img.naturalHeight} loaded`);
+      if (live) debouncedRun(); else drawOriginal();
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => setStatus("Failed to load image");
+    img.src = url;
+  }
+
+  function drawOriginal() {
+    const oc = origCanvasRef.current;
+    const pc = procCanvasRef.current;
+    const pctx = pc.getContext('2d');
+    pctx.clearRect(0,0,pc.width,pc.height);
+    pctx.drawImage(oc, 0, 0);
   }
 
   function onProcPointerDown(e){
