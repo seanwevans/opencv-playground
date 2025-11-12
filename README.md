@@ -111,19 +111,3 @@ const OP_REGISTRY = {
   // ...other ops
 };
 ```
-**Schema → UI** is automatic (sliders, selects, numbers). If an op needs 1‑ or 3‑channel input, perform the conversion internally (e.g., RGBA→RGB/GRAY then back to RGBA).
-
----
-
-## Architecture Notes
-- Pipeline = ordered list of ops → each `apply()` returns a new `cv.Mat`
-- After each step, the previous `Mat` is `delete()`‑d to avoid leaks
-- Results are drawn to a canvas; an `ImageData` snapshot is cached to render the compare overlay without recomputing
-- UI is fully reactive; changes to ops / ordering / enable flags cause re‑processing (debounced when **Live** is on)
-
----
-
-## Troubleshooting
-- **“OpenCV not ready”**: Ensure the `<script src="…/opencv.js">` tag is present and loads before the React bundle. The app waits for `cv.onRuntimeInitialized` when needed.
-- **Bilateral crashes**: In OpenCV.js, `bilateralFilter` accepts 1‑ or 3‑channel images only. This app converts RGBA→RGB before the filter and back to RGBA after.
-- **Dark mode contrast**: The app forces `color-scheme: light` for consistent button contrast. Adjust styling as desired.
