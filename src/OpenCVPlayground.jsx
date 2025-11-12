@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 
 /**
  * OpenCV Playground — a HandBrake-style frontend for OpenCV.js
@@ -452,7 +452,9 @@ export default function OpenCVPlayground() {
             setCvReady(true);
           }
         }
-      } catch {}
+      } catch (error) {
+        console.warn("OpenCV ready check failed", error);
+      }
     }
     // If already loaded, flag ready; otherwise wait until script runs.
     const iv = setInterval(readyCheck, 100);
@@ -462,7 +464,11 @@ export default function OpenCVPlayground() {
 
   // Cleanup originalMat on unmount
   useEffect(() => () => {
-    try { originalMatRef.current?.delete?.(); } catch {}
+    try {
+      originalMatRef.current?.delete?.();
+    } catch (error) {
+      console.warn("Failed to delete original Mat on unmount", error);
+    }
   }, []);
 
   const debouncedRun = useDebouncedCallback(() => runPipeline(), 120);
@@ -485,7 +491,11 @@ export default function OpenCVPlayground() {
 
     // restore processed frame
     if (processedImageDataRef.current) {
-      try { ctx.putImageData(processedImageDataRef.current, 0, 0); } catch {}
+      try {
+        ctx.putImageData(processedImageDataRef.current, 0, 0);
+      } catch (error) {
+        console.warn("Failed to restore processed image data", error);
+      }
     }
 
     // clip and draw original on the left side
@@ -533,7 +543,7 @@ export default function OpenCVPlayground() {
   useEffect(() => {
     if (!cvReady) return;
     if (live) debouncedRun();
-  }, [ops, live, cvReady]);
+  }, [ops, live, cvReady, debouncedRun]);
 
   // Keep compare overlay crisp on resize
   useEffect(() => {
@@ -542,12 +552,26 @@ export default function OpenCVPlayground() {
     return () => window.removeEventListener('resize', onResize);
   }, [refreshCompareOverlay]);
 
-  function onFileChosen(file) {
+  const drawOriginal = useCallback(() => {
+    const oc = origCanvasRef.current;
+    const pc = procCanvasRef.current;
+    if (!oc || !pc) return;
+    const pctx = pc.getContext('2d');
+    pctx.clearRect(0, 0, pc.width, pc.height);
+    pctx.drawImage(oc, 0, 0);
+  }, []);
+
+  const onFileChosen = useCallback((file) => {
     if (!file) return;
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       const oc = origCanvasRef.current;
+      const pc = procCanvasRef.current;
+      if (!oc || !pc) {
+        URL.revokeObjectURL(url);
+        return;
+      }
       oc.width = img.naturalWidth; oc.height = img.naturalHeight;
       const ctx = oc.getContext('2d');
       ctx.drawImage(img, 0, 0);
@@ -555,30 +579,34 @@ export default function OpenCVPlayground() {
       // Replace originalMat
       const cv = window.cv;
       const newMat = cv.imread(oc);
-      if (originalMatRef.current) try { originalMatRef.current.delete(); } catch {}
+      if (originalMatRef.current) {
+        try {
+          originalMatRef.current.delete();
+        } catch (error) {
+          console.warn("Failed to delete previous Mat", error);
+        }
+      }
       originalMatRef.current = newMat; // RGBA
       processedImageDataRef.current = null;
 
       // Resize processed canvas to match
-      const pc = procCanvasRef.current;
       pc.width = oc.width; pc.height = oc.height;
 
       setFileLabel(file.name || "Open image…");
       setStatus(`${img.naturalWidth}×${img.naturalHeight} loaded`);
-      if (live) debouncedRun(); else drawOriginal();
+      if (live) {
+        debouncedRun();
+      } else {
+        drawOriginal();
+      }
       URL.revokeObjectURL(url);
     };
-    img.onerror = () => setStatus("Failed to load image");
+    img.onerror = () => {
+      setStatus("Failed to load image");
+      URL.revokeObjectURL(url);
+    };
     img.src = url;
-  }
-
-  function drawOriginal() {
-    const oc = origCanvasRef.current;
-    const pc = procCanvasRef.current;
-    const pctx = pc.getContext('2d');
-    pctx.clearRect(0,0,pc.width,pc.height);
-    pctx.drawImage(oc, 0, 0);
-  }
+  }, [debouncedRun, drawOriginal, live]);
 
   function onProcPointerDown(e){
     if (compareMode !== 'slider') return;
@@ -622,7 +650,11 @@ export default function OpenCVPlayground() {
         cv.imshow(outCanvas, current);
       }
       const ctx2 = outCanvas.getContext('2d');
-      try { processedImageDataRef.current = ctx2.getImageData(0, 0, outCanvas.width, outCanvas.height); } catch {}
+      try {
+        processedImageDataRef.current = ctx2.getImageData(0, 0, outCanvas.width, outCanvas.height);
+      } catch (error) {
+        console.warn("Failed to snapshot processed canvas", error);
+      }
       // Draw compare overlay (slider/peek)
       refreshCompareOverlay();
       current.delete();
@@ -669,7 +701,13 @@ export default function OpenCVPlayground() {
 
   function exportPipeline() {
     const json = JSON.stringify(ops, null, 2);
-    try { navigator.clipboard?.writeText(json).catch(() => {}); } catch {}
+    try {
+      navigator.clipboard?.writeText(json).catch((error) => {
+        console.warn("Clipboard write was rejected", error);
+      });
+    } catch (error) {
+      console.warn("Clipboard API unavailable", error);
+    }
     alert(`Pipeline JSON copied to clipboard.\n\n${json}`);
   }
 
@@ -682,8 +720,12 @@ export default function OpenCVPlayground() {
     off.width = pc.width; off.height = pc.height;
     const octx = off.getContext('2d');
     if (processedImageDataRef.current) {
-      try { octx.putImageData(processedImageDataRef.current, 0, 0); }
-      catch { octx.drawImage(pc, 0, 0); }
+      try {
+        octx.putImageData(processedImageDataRef.current, 0, 0);
+      } catch (error) {
+        console.warn("Falling back to drawImage after putImageData failure", error);
+        octx.drawImage(pc, 0, 0);
+      }
     } else {
       octx.drawImage(pc, 0, 0);
     }
@@ -874,7 +916,8 @@ function OpCard({ op, onChange, onRemove, onMoveUp, onMoveDown }) {
 }
 
 function ParamControl({ name, spec, value, onChange }) {
-  const id = `param-${name}-${Math.random().toString(36).slice(2,7)}`;
+  const reactId = useId();
+  const id = `param-${name}-${reactId}`;
   const label = spec.label || name;
   if (spec.type === 'select') {
     return (
