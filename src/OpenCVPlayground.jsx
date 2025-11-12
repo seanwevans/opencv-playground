@@ -379,7 +379,19 @@ const OP_REGISTRY = {
     apply: (cv, src, p, ctx) => {
       const out = new cv.Mat();
       // src is current pipeline image; ctx.original is the original Mat (RGBA)
-      cv.addWeighted(src, p.alpha, ctx.original, 1 - p.alpha, 0, out);
+      let originalForBlend = ctx?.original;
+      let resizedOriginal = null;
+
+      if (originalForBlend && (originalForBlend.rows !== src.rows || originalForBlend.cols !== src.cols)) {
+        resizedOriginal = new cv.Mat();
+        cv.resize(originalForBlend, resizedOriginal, new cv.Size(src.cols, src.rows), 0, 0, cv.INTER_LINEAR);
+        originalForBlend = resizedOriginal;
+      }
+
+      const blendSrc = originalForBlend || src;
+      cv.addWeighted(src, p.alpha, blendSrc, 1 - p.alpha, 0, out);
+
+      if (resizedOriginal) resizedOriginal.delete();
       return out;
     },
   },
