@@ -81,7 +81,7 @@ const OP_REGISTRY = {
       rgb.delete(); out3.delete();
       return out;
     },
-    },
+  },
   Canny: {
     schema: {
       t1: { type: "int", label: "Threshold 1", min: 0, max: 255, step: 1, default: 50 },
@@ -408,6 +408,11 @@ export default function OpenCVPlayground() {
   const processingRef = useRef(false);
   const processedImageDataRef = useRef(null); // snapshot of processed for fast re-draw
 
+  // File & download state
+  const fileInputRef = useRef(null);
+  const [fileLabel, setFileLabel] = useState("Open image…");
+  const [dlFormat, setDlFormat] = useState("png");
+
   // Compare/UI state
   const [compareMode, setCompareMode] = useState("slider"); // 'side-by-side' | 'slider'
   const [sliderX, setSliderX] = useState(0.5); // 0..1 divider for slider mode
@@ -505,6 +510,7 @@ export default function OpenCVPlayground() {
       const pc = procCanvasRef.current;
       pc.width = oc.width; pc.height = oc.height;
 
+      setFileLabel(file.name || "Open image…");
       setStatus(`${img.naturalWidth}×${img.naturalHeight} loaded`);
       if (live) debouncedRun(); else drawOriginal();
       URL.revokeObjectURL(url);
@@ -651,8 +657,41 @@ export default function OpenCVPlayground() {
 
   function exportPipeline() {
     const json = JSON.stringify(ops, null, 2);
-    navigator.clipboard?.writeText(json).catch(()=>{});
-    alert("Pipeline JSON copied to clipboard.\n\n" + json);
+    try { navigator.clipboard?.writeText(json).catch(() => {}); } catch {}
+    alert(`Pipeline JSON copied to clipboard.\n\n${json}`);
+  }
+
+  function downloadProcessed(fmt = dlFormat) {
+    const pc = procCanvasRef.current;
+    if (!pc || !originalMatRef.current) return;
+    if (!live) runPipeline();
+
+    const off = document.createElement('canvas');
+    off.width = pc.width; off.height = pc.height;
+    const octx = off.getContext('2d');
+    if (processedImageDataRef.current) {
+      try { octx.putImageData(processedImageDataRef.current, 0, 0); }
+      catch { octx.drawImage(pc, 0, 0); }
+    } else {
+      octx.drawImage(pc, 0, 0);
+    }
+
+    const mime = fmt === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const ext = fmt === 'jpeg' ? 'jpg' : 'png';
+    const trigger = (blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `opencv-playground.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    };
+    if (off.toBlob) off.toBlob(trigger, mime, fmt === 'jpeg' ? 0.92 : undefined);
+    else {
+      const dataURL = off.toDataURL(mime);
+      const a = document.createElement('a');
+      a.href = dataURL; a.download = `opencv-playground.${ext}`; a.click();
+    }
   }
 
   function importPipeline() {
@@ -699,6 +738,13 @@ export default function OpenCVPlayground() {
             <span className="opacity-60">(hold Space to peek original)</span>
           </label>
           <button className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50" disabled={!cvReady} onClick={runPipeline}>Apply</button>
+          <div className="flex items-center gap-2">
+            <select className="border rounded p-1 bg-white text-neutral-900" value={dlFormat} onChange={e=>setDlFormat(e.target.value)}>
+              <option value="png">PNG</option>
+              <option value="jpeg">JPEG</option>
+            </select>
+            <button className="px-3 py-1 rounded bg-neutral-800 text-white disabled:opacity-50" disabled={!cvReady || !originalMatRef.current} onClick={()=>downloadProcessed()}>Download</button>
+          </div>
           <button className="px-3 py-1 rounded bg-neutral-800 text-white" onClick={exportPipeline}>Export</button>
           <button className="px-3 py-1 rounded bg-neutral-800 text-white" onClick={importPipeline}>Import</button>
         </div>
@@ -708,8 +754,12 @@ export default function OpenCVPlayground() {
         {/* Left panel: Image load + previews */}
         <section className="col-span-8 flex flex-col gap-3">
           <div className="border rounded-lg p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <input type="file" accept="image/*" onChange={e => onFileChosen(e.target.files?.[0])} disabled={disabledUI} />
+            <div className="flex items-center gap-3">
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                     onChange={e => onFileChosen(e.target.files?.[0])} disabled={disabledUI} />
+              <button className="px-3 py-1 rounded bg-neutral-800 text-white disabled:opacity-50"
+                      onClick={()=>fileInputRef.current?.click()} disabled={disabledUI}>Open</button>
+              <span className="text-sm opacity-80 truncate max-w-[28ch]" title={fileLabel}>{fileLabel}</span>
               <span className="text-sm opacity-70">{cvReady ? status : 'Loading OpenCV… (ensure <script src=opencv.js>)'}</span>
             </div>
             <div className="text-xs opacity-70">{ops.length} ops</div>
