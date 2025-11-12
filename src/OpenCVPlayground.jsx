@@ -700,8 +700,19 @@ export default function OpenCVPlayground() {
     try {
       const arr = JSON.parse(json);
       if (!Array.isArray(arr)) throw new Error("Invalid pipeline");
-      // Ensure ids unique
-      for (const o of arr) { if (!o.id) o.id = opAutoId++; }
+      // Ensure ids unique and track the highest numeric id encountered
+      let maxId = -1;
+      for (const o of arr) {
+        let numericId = Number.parseInt(o?.id, 10);
+        if (!Number.isFinite(numericId)) {
+          o.id = opAutoId++;
+          numericId = o.id;
+        } else {
+          o.id = numericId;
+        }
+        if (numericId > maxId) maxId = numericId;
+      }
+      opAutoId = Math.max(opAutoId, maxId + 1);
       setOps(arr);
       if (live) debouncedRun();
     } catch (e) {
